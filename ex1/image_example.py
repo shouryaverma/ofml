@@ -8,6 +8,7 @@ import numpy as np
 import cv2
 import matplotlib.pyplot as plt
 import imageio
+from PIL import Image
 from numba import jit
 
 #Sobel Img Edge Detection
@@ -15,7 +16,6 @@ def edgeImg(img):
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     sobelX = cv2.Sobel(gray,cv2.CV_64F,1,0)
     sobelY = cv2.Sobel(gray,cv2.CV_64F,0,1)
-
     return np.sqrt(np.power(sobelX,2) + np.power(sobelY,2))
 
 #use dynamic programming to find Min Energy Path
@@ -35,8 +35,6 @@ def calculateMinEnergyPath(energyImg):
             #just making sure we dont go out of bounds and finding the min
             left = max(0,j-1)
             right = min(m-1,j+1)
-            
-
             minEnergyPath[i][j] = energyImg[i][j] + min(minEnergyPath[i+1][left:right+1])
 
     return minEnergyPath
@@ -62,7 +60,6 @@ def removeSeam(img,minEnergyPath):
         #find min from three down
         center = minPos
         min = minEnergyPath[i][center]
-
         if(center>0 and minEnergyPath[i][center-1] < min):
             min = minEnergyPath[i][center-1]
             minPos = center -1
@@ -70,9 +67,7 @@ def removeSeam(img,minEnergyPath):
         if(center<m-1 and minEnergyPath[i][center+1] < min):
             min = minEnergyPath[i][center+1]
             minPos = center+1
-
         newImg[i] = np.concatenate((img[i][0:minPos],img[i][minPos+1:img.shape[1]]))
-    
     return newImg
 
 
@@ -80,21 +75,12 @@ def removeNSeams(img,seamNumber):
     newImg = img
     for i in range(0,seamNumber):
         print ('removing seam ',i+1, ' of ', seamNumber, end="\r")
-        
         newEP = calculateMinEnergyPath(edgeImg(newImg))
         newImg = removeSeam(newImg,newEP)
-
-
     return newImg
 
 img = imageio.imread('tower.jpg')
 
-newImg = removeNSeams(img,40)
-
-plt.figure(figsize=(10,10))
-plt.imshow(img)
-plt.show()
-
-plt.figure(figsize=(10,10))
-plt.imshow(newImg)
-plt.show()
+newImg = removeNSeams(img,48)
+newImg = Image.fromarray(newImg)
+newImg.save('out.png')
