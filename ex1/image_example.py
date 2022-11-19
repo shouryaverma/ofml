@@ -9,78 +9,70 @@ import cv2
 import matplotlib.pyplot as plt
 import imageio
 from PIL import Image
-from numba import jit
 
-#Sobel Img Edge Detection
-def edgeImg(img):
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    sobelX = cv2.Sobel(gray,cv2.CV_64F,1,0)
-    sobelY = cv2.Sobel(gray,cv2.CV_64F,0,1)
-    return np.sqrt(np.power(sobelX,2) + np.power(sobelY,2))
+def sobel_edge_detection(img):
+    color = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    X_axis = cv2.Sobel(color,cv2.CV_64F,1,0)
+    Y_axis = cv2.Sobel(color,cv2.CV_64F,0,1)
+    x = np.power(X_axis,2)
+    y = np.power(Y_axis,2)
+    return np.sqrt(x+y)
 
-#use dynamic programming to find Min Energy Path
-@jit
-def calculateMinEnergyPath(energyImg):
-    minEnergyPath = np.zeros(energyImg.shape)
-    n = energyImg.shape[0]
-    m = energyImg.shape[1]
+def minimum_energy(edge_img):
+    min_energy = np.zeros(edge_img.shape)
+    N = edge_img.shape[0]
+    M = edge_img.shape[1]
 
-    #base case on the last row of the matrix
-    for j in range(0,m):
-        minEnergyPath[n-1][j] = energyImg[n-1][j]
+    for j in range(0,M):
+        min_energy[N-1][j] = edge_img[N-1][j]
 
-    #builds matrix from bottom up
-    for i in range(n-2,-1,-1):
-        for j in range(0,m):
-            #just making sure we dont go out of bounds and finding the min
+    for i in range(N-2,-1,-1):
+        for j in range(0,M):
             left = max(0,j-1)
-            right = min(m-1,j+1)
-            minEnergyPath[i][j] = energyImg[i][j] + min(minEnergyPath[i+1][left:right+1])
+            right = min(M-1,j+1)
+            min_energy[i][j] = edge_img[i][j] + min(min_energy[i+1][left:right+1])
 
-    return minEnergyPath
+    return min_energy
 
-@jit
-def removeSeam(img,minEnergyPath):
-    n = minEnergyPath.shape[0]
-    m = minEnergyPath.shape[1]
+def delete_seam(img,min_energy):
+    N = min_energy.shape[0]
+    M = min_energy.shape[1]
     
-    minPos = 0
-    minVal = minEnergyPath[0][0]
+    index = 0
+    value = min_energy[0][0]
 
-    #find Min Seam
-    for i in range(1,m):
-        if(minEnergyPath[0][i] < minVal):
-            minPos = i
-            minVal = minEnergyPath[0][i]
+    for i in range(1,N):
+        if(min_energy[0][i] < value):
+            index = i
+            value = min_energy[0][i]
 
-    newImg = np.zeros((img.shape[0],img.shape[1]-1,img.shape[2]),dtype=np.uint8)
+    new_img = np.zeros((img.shape[0],img.shape[1]-1,img.shape[2]),dtype=np.uint8)
 
-    newImg[0] = np.concatenate((img[0][0:minPos],img[0][minPos+1:img.shape[1]]))
-    for i in range(1,n):
+    new_img[0] = np.concatenate((img[0][0:index],img[0][index+1:img.shape[1]]))
+    for i in range(1,N):
         #find min from three down
-        center = minPos
-        min = minEnergyPath[i][center]
-        if(center>0 and minEnergyPath[i][center-1] < min):
-            min = minEnergyPath[i][center-1]
-            minPos = center -1
+        center = index
+        min = min_energy[i][center]
+        if(center>0 and min_energy[i][center-1] < min):
+            min = min_energy[i][center-1]
+            index = center -1
 
-        if(center<m-1 and minEnergyPath[i][center+1] < min):
-            min = minEnergyPath[i][center+1]
-            minPos = center+1
-        newImg[i] = np.concatenate((img[i][0:minPos],img[i][minPos+1:img.shape[1]]))
-    return newImg
+        if(center<M-1 and min_energy[i][center+1] < min):
+            min = min_energy[i][center+1]
+            index = center+1
+        new_img[i] = np.concatenate((img[i][0:index],img[i][index+1:img.shape[1]]))
+    return new_img
 
+def number_of_seams(img,n_seam):
+    new_img = img
+    for i in range(0,n_seam):
+        min_energy = minimum_energy(sobel_edge_detection(new_img))
+        new_img = delete_seam(new_img,min_energy)
+    return new_img
 
-def removeNSeams(img,seamNumber):
-    newImg = img
-    for i in range(0,seamNumber):
-        print ('removing seam ',i+1, ' of ', seamNumber, end="\r")
-        newEP = calculateMinEnergyPath(edgeImg(newImg))
-        newImg = removeSeam(newImg,newEP)
-    return newImg
-
-img = imageio.imread('tower.jpg')
-
-newImg = removeNSeams(img,48)
-newImg = Image.fromarray(newImg)
-newImg.save('out.png')
+img = imageio.v2.imread('tower.jpg')
+obtain_shape = (100,100,3)
+n_seams = np.subtract(img.shape,obtain_shape)
+new_img = number_of_seams(img,int(n_seams[np.nonzero(n_seams)]))
+new_img = Image.fromarray(new_img)
+new_img.save('out.png')
