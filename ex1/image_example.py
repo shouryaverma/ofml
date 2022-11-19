@@ -50,7 +50,6 @@ def delete_seam(img,min_energy):
 
     new_img[0] = np.concatenate((img[0][0:index],img[0][index+1:img.shape[1]]))
     for i in range(1,N):
-        #find min from three down
         center = index
         min = min_energy[i][center]
         if(center>0 and min_energy[i][center-1] < min):
